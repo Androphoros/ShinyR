@@ -1,0 +1,198 @@
+---
+title: "PS2_graphs"
+author: "Cristobal Rafael"
+date: "28/11/2019"
+output: html_document
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(repos = c(CRAN = "http://cran.rstudio.com"))
+rm(list = ls()) # limpia el entorno
+
+options(scipen = 9999)
+
+#install.packages('zoo')
+library(ggridges)
+library(GGally)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(haven)
+library(readr)
+library(data.table)
+library(zoo)
+terr<- read.csv("C:/Users/jimer/OneDrive/Escritorio/R y Data Science/PS2/globalterrorismdb_0718dist.csv")
+polit<-read_dta("C:/Users/jimer/OneDrive/Escritorio/R y Data Science/PS2/DPI2012.dta")
+```
+
+
+```{r cars}
+summary(terr)
+head(terr)
+terr
+```
+
+## Including Plots
+
+un ridge donde se pueda establecer el aNo y pais para mostrar. se podria agrupar con continente de todas maneras. Un slider que elija region y luego pais con la opcion de todo el pais a la vez<-- requerira una funcion.
+
+repeticion de cada tipo de arma cada mes o a;o
+
+cruzazr attacktype/targtype
+
+```{r }
+terr%>%filter(iyear==1986,country_txt=="Chile" )%>%
+  mutate(fecha = as.yearmon(paste(iyear, imonth, sep = "-")))%>%
+  ggplot(aes(x =fecha , y = attacktype1_txt , fill=attacktype1_txt)) +
+  geom_density_ridges(jittered_points=T, alpha=0.7) +
+  theme_ridges() + 
+  theme_bw() +
+  xlab("Months in year") +
+  ylab("Attack type")+
+  labs(fill = "Attack Type")
+  
+
+```
+
+```{r}
+
+
+
+
+pols<-terr%>%rename(
+    countryname =country_txt ,
+    year = iyear)%>%mutate(year = as.numeric(year))%>%
+    left_join(polit, by=NULL  )
+
+armas<-c(levels(pols$weaptype1_txt))
+regiones <- c(levels(pols$region_txt))
+victimas <-c(levels(pols$targtype1_txt))
+
+anios<-c(levels(as.factor(pols$year)))
+paises<-c(levels(as.factor(pols$countryname)))
+#juzgar por tipo de arma
+pols%>%mutate(military = as.factor(military))%>%
+  subset(pols$countryname=="Chile")%>%
+  group_by(year, targtype1_txt, military)%>% 
+  summarise(muerte = sum(nkill), numero=n())%>%
+  ggplot(aes(x=year, y=muerte, color=targtype1_txt, shape=military))+
+  geom_point()+
+  theme_bw()
+
+
+
+
+
+setDT(pols)[, c(levels(pols$weaptype1_txt), "weaptype1_txt") := 
+    c(lapply(levels(weaptype1_txt), function(x) as.integer(x ==weaptype1_txt)), .(NULL))]
+
+#setDT(pols)[, c(levels(pols$targtype1_txt), "targtype1_txt") := 
+ #   c(lapply(levels(targtype1_txt), function(x) as.integer(x ==targtype1_txt)), .(NULL))]
+
+
+pols%>%mutate(military = as.factor(military))%>%
+  subset(pols$countryname==input$Country_txt,
+         pols$targtype%in%input$targt)%>%
+  group_by(pols$year, input$VARI, military)%>% 
+  summarise(muerte = sum(nkill), numero=n())%>%
+  ggplot(aes(x=year, y=muerte, color=input$VARI, shape=military))+
+  geom_point()+
+  theme_bw()
+```
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+
+Country_txt<- "Chile"
+targt<- c("Police", "Military")
+pols%>%mutate(military = as.factor(military))%>%
+  filter(pols$countryname==Country_txt,
+         pols$targtype1_txt%in%targt)%>%
+  group_by(year, targtype1_txt, military)%>% 
+  summarise(muerte = sum(nkill), numero=n())%>%
+  ggplot(aes(x=year, y=muerte, color=targtype1_txt, shape=military))+
+  geom_point()+
+  theme_bw()
+```
+
+```{r}
+pols<-terr%>%rename(
+    countryname =country_txt ,
+    year = iyear)%>%mutate(year = as.numeric(year))%>%
+    left_join(polit, by=NULL)%>%filter(region_txt=="North America")
+
+
+
+weaptype<-c(levels((pols$weaptype1_txt)))
+vars<-c(weaptype, "military")
+
+setDT(pols)[, c(levels(pols$weaptype1_txt), "weaptype1_txt") := 
+    c(lapply(levels(weaptype1_txt), function(x) as.integer(x ==weaptype1_txt)), .(NULL))]
+
+binarizador<- function(x){
+  pols<-pols%>%mutate(  x =
+    ifelse( pols$weaptype2_txt=="x"|
+              pols$weaptype3_txt=="x"|
+              pols$weaptype4_txt=="x", 1,0))
+
+}
+  
+lapply(weaptype, function(x) binarizador(x))
+
+#weaptype[length(weaptype)+1]<-"military" 
+
+fuby<-pols%>%subset(select=weaptype)
+#%>%cor()
+fuby[NA] <- 0
+fuby<- cor(fuby)
+heatmap(fuby)
+```
+
+```{r}
+pols%>%filter((region_txt=="North America"))%>%group_by(weapsubtype1_txt)%>%summarise(Ataques=n())
+
+pols%>%
+filter(pols$countryname=="Chile", pols$targtype1_txt%in%c("Police", "Military"))%>%
+    group_by(year, military, targtype1_txt)%>%
+    summarise(Ataques = n())%>%
+    ggplot(aes(y=Ataques, x=year))+
+    geom_line()+
+    theme_bw()
+  
+```
+
+
+```{r}
+  pols%>%
+filter(pols$countryname=="Chile", pols$targtype1_txt%in%"Military")%>%
+    group_by(year, targtype1_txt)%>%
+    summarise(Ataques = n())%>%
+    ggplot(aes(y=Ataques, x=year))+
+    geom_line()+
+    theme_bw()
+
+```
+
+```{r}
+pols<-terr%>%rename(
+    countryname =country_txt ,
+    year = iyear)%>%mutate(year = as.numeric(year))%>%
+    left_join(polit, by=NULL  )
+
+
+p <- pols%>%filter(region_txt%in%"North America", is.na(attacktype1_txt)==0)%>%group_by(region_txt, attacktype1_txt)%>%summarise(num= n())
+p
+max(p$num)
+ggplot(p,  aes(x=as.character(attacktype1_txt), y=num)) +
+  geom_bar(stat="identity", fill=alpha("blue", 0.3), na.rm = T) +
+  ylim(-100,max(p$num)) +
+  theme_minimal() +
+  theme(
+    plot.margin = unit(rep(-2,4), "cm")
+  ) +
+  coord_polar(start = 0)
+
+```
+
